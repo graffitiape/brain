@@ -1,4 +1,4 @@
-# brain
+# brain 🧠
 
 Standalone Claude Code and Codex configuration for the shared Obsidian Brain workflow.
 
