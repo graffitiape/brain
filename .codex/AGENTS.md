@@ -1,0 +1,67 @@
+## Obsidian Brain
+
+Use the user's Obsidian vault as persistent long-term memory across Codex sessions.
+
+Vault path:
+- First read `~/.codex/obsidian-brain-path`.
+- If that is missing or invalid, fall back to `~/.claude/obsidian-brain-path`.
+
+Brain folder:
+- Use `<vault>/Brain/`.
+- Treat it as the shared multi-model AI brain, not as storage for one assistant.
+
+At the start of relevant work:
+- Use `<vault>/Brain/_Index.md` as the map of what the brain contains. The SessionStart hook may already have printed it; if it is visible in the current context, do not reread it just to satisfy this instruction.
+- After checking the index, load only the notes needed for the task at hand.
+- Read the project note matching the current repository only when one exists under `Projects/Work/`, `Projects/Hobby/`, or `Projects/Side-Projects/`.
+- Read `Preferences/coding-conventions.md` for code, docs, git, or workflow changes.
+- Read related `Learnings/` or `Decisions/` notes only when the task overlaps with them.
+- Do not read the whole vault, whole folders, or old session notes by default.
+
+After meaningful work:
+- Proactively write or update Obsidian Brain notes before the final response when the session produced a feature, bug fix, refactor, technical decision, reusable learning, project setup detail, or important user preference.
+- Prefer updating an existing note over creating a duplicate.
+- If you create a note, add a link to `[[_Index]]`, cross-link related notes, and update `_Index.md`.
+- Keep notes concise, factual, and useful months later.
+- Skip note writes for trivial questions, one-line changes, or exploratory work with no concrete outcome.
+
+Note format:
+```markdown
+---
+id: <Note Title>
+aliases: []
+tags: [brain, <CATEGORY_TAG>]
+created: YYYY-MM-DD
+updated: YYYY-MM-DD
+project: <project-name-if-applicable>
+---
+
+DD/MM/YYYY HH:mm
+
+Links: [[_Index]], [[related-note-1]]
+Tags: #BRAIN #<CATEGORY_TAG>
+
+### Summary
+<1-3 sentences describing what this note captures>
+
+### Details
+<Architecture, patterns, solutions, rationale, or session outcome>
+
+### Connections
+- Related to [[note-name]] because <why>
+
+#### References
+```
+
+Categories:
+- `#PROJECT` + `#WORK`: `Projects/Work/`
+- `#PROJECT` + `#HOBBY`: `Projects/Hobby/`
+- `#PROJECT` + `#SIDE_PROJECT`: `Projects/Side-Projects/`
+- `#LEARNING`: `Learnings/`
+- `#DECISION`: `Decisions/`
+- `#SESSION`: `Sessions/`
+- `#PREFERENCE`: `Preferences/`
+
+Additional user preferences:
+- Do not add `Co-Authored-By` lines to git commit messages.
+- Keep Obsidian note writes a natural part of wrapping meaningful work, not something that requires a separate reminder from the user.

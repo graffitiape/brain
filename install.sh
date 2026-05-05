@@ -1,0 +1,209 @@
+#!/bin/bash
+set -e
+
+BRAIN_REPO="$(cd "$(dirname "$0")" && pwd)"
+BRAIN_FOLDER_NAME="Brain"
+OLD_BRAIN_FOLDER_NAME="Claude Brain"
+
+link() {
+  local rel="$1"
+  local src="$BRAIN_REPO/$rel"
+  local dst="$HOME/$rel"
+
+  mkdir -p "$(dirname "$dst")"
+
+  if [ -L "$dst" ]; then
+    rm "$dst"
+  elif [ -e "$dst" ]; then
+    echo "Backing up existing $dst -> $dst.bak"
+    mv "$dst" "$dst.bak"
+  fi
+
+  ln -s "$src" "$dst"
+  echo "Linked $dst -> $src"
+}
+
+ensure_toml_top_level_key() {
+  local file="$1"
+  local key="$2"
+  local value="$3"
+
+  if grep -q "^$key *= *" "$file"; then
+    return
+  fi
+
+  local tmp
+  tmp="$(mktemp)"
+  awk -v line="$key = $value" '
+    !inserted && /^\[/ { print line; inserted=1 }
+    { print }
+    END { if (!inserted) print line }
+  ' "$file" > "$tmp"
+  mv "$tmp" "$file"
+}
+
+replace_literal_in_file() {
+  local file="$1"
+  local old="$2"
+  local new="$3"
+
+  [ -f "$file" ] || return
+  grep -Fq "$old" "$file" || return
+
+  local tmp
+  tmp="$(mktemp)"
+  awk -v old="$old" -v new="$new" '
+    {
+      while ((idx = index($0, old)) > 0) {
+        $0 = substr($0, 1, idx - 1) new substr($0, idx + length(old))
+      }
+      print
+    }
+  ' "$file" > "$tmp"
+  mv "$tmp" "$file"
+}
+
+ensure_brain_folder() {
+  local vault="$1"
+  local brain="$vault/$BRAIN_FOLDER_NAME"
+  local old_brain="$vault/$OLD_BRAIN_FOLDER_NAME"
+
+  if [ ! -d "$brain" ] && [ -d "$old_brain" ]; then
+    mv "$old_brain" "$brain"
+    echo "Renamed $OLD_BRAIN_FOLDER_NAME -> $BRAIN_FOLDER_NAME"
+  fi
+
+  mkdir -p "$brain/Projects/Work" "$brain/Projects/Hobby" "$brain/Projects/Side-Projects" \
+           "$brain/Learnings" "$brain/Decisions" \
+           "$brain/Sessions" "$brain/Preferences"
+}
+
+detect_obsidian_vault() {
+  local vault="$1"
+
+  if [ -n "$vault" ] && [ -d "$vault" ]; then
+    echo "$vault"
+    return
+  fi
+
+  vault=""
+
+  if [[ "$(uname)" == "Darwin" ]]; then
+    local icloud_obsidian="$HOME/Library/Mobile Documents/iCloud~md~obsidian/Documents"
+    if [ -d "$icloud_obsidian" ]; then
+      vault=$(find "$icloud_obsidian" -maxdepth 2 -name ".obsidian" -type d 2>/dev/null | head -1 | xargs dirname 2>/dev/null)
+    fi
+  fi
+
+  if [ -z "$vault" ]; then
+    local dir
+    for dir in "$HOME/Documents" "$HOME/Obsidian" "$HOME"; do
+      if [ -d "$dir" ]; then
+        vault=$(find "$dir" -maxdepth 3 -name ".obsidian" -type d 2>/dev/null | head -1 | xargs dirname 2>/dev/null)
+        [ -n "$vault" ] && break
+      fi
+    done
+  fi
+
+  echo "$vault"
+}
+
+# Claude Code
+link .claude/CLAUDE.md
+link .claude/settings.json
+link .claude/hooks
+
+CLAUDE_OBSIDIAN_VAULT=""
+if [ -f "$HOME/.claude/obsidian-brain-path" ]; then
+  CLAUDE_OBSIDIAN_VAULT="$(cat "$HOME/.claude/obsidian-brain-path")"
+fi
+
+CLAUDE_OBSIDIAN_VAULT="$(detect_obsidian_vault "$CLAUDE_OBSIDIAN_VAULT")"
+
+if [ -n "$CLAUDE_OBSIDIAN_VAULT" ]; then
+  echo "$CLAUDE_OBSIDIAN_VAULT" > "$HOME/.claude/obsidian-brain-path"
+  echo "Configured Claude Code Obsidian brain path: $CLAUDE_OBSIDIAN_VAULT"
+
+  ensure_brain_folder "$CLAUDE_OBSIDIAN_VAULT"
+  BRAIN="$CLAUDE_OBSIDIAN_VAULT/$BRAIN_FOLDER_NAME"
+
+  LOCAL_SETTINGS="$HOME/.claude/settings.local.json"
+  if [ ! -f "$LOCAL_SETTINGS" ]; then
+    cat > "$LOCAL_SETTINGS" << EOJSON
+{
+  "permissions": {
+    "allow": [
+      "Read($BRAIN/**)",
+      "Write($BRAIN/**)",
+      "Edit($BRAIN/**)"
+    ]
+  }
+}
+EOJSON
+    echo "Created settings.local.json with brain permissions"
+  else
+    replace_literal_in_file "$LOCAL_SETTINGS" "$CLAUDE_OBSIDIAN_VAULT/$OLD_BRAIN_FOLDER_NAME" "$BRAIN"
+    echo "Updated settings.local.json brain path if needed"
+  fi
+else
+  echo "Warning: No Obsidian vault found. Brain will auto-detect on first session."
+fi
+
+# Codex
+link .codex/AGENTS.md
+link .codex/hooks.json
+link .codex/hooks/obsidian_session_start.sh
+link .codex/hooks/obsidian_stop.sh
+
+mkdir -p "$HOME/.codex"
+CODEX_OBSIDIAN_VAULT=""
+
+if [ -f "$HOME/.codex/obsidian-brain-path" ]; then
+  CODEX_OBSIDIAN_VAULT="$(cat "$HOME/.codex/obsidian-brain-path")"
+elif [ -f "$HOME/.claude/obsidian-brain-path" ]; then
+  CODEX_OBSIDIAN_VAULT="$(cat "$HOME/.claude/obsidian-brain-path")"
+fi
+
+CODEX_OBSIDIAN_VAULT="$(detect_obsidian_vault "$CODEX_OBSIDIAN_VAULT")"
+
+if [ -n "$CODEX_OBSIDIAN_VAULT" ]; then
+  echo "$CODEX_OBSIDIAN_VAULT" > "$HOME/.codex/obsidian-brain-path"
+  echo "Configured Codex Obsidian brain path: $CODEX_OBSIDIAN_VAULT"
+
+  ensure_brain_folder "$CODEX_OBSIDIAN_VAULT"
+  CODEX_BRAIN="$CODEX_OBSIDIAN_VAULT/$BRAIN_FOLDER_NAME"
+  OLD_CODEX_BRAIN="$CODEX_OBSIDIAN_VAULT/$OLD_BRAIN_FOLDER_NAME"
+
+  CODEX_CONFIG="$HOME/.codex/config.toml"
+  touch "$CODEX_CONFIG"
+  ensure_toml_top_level_key "$CODEX_CONFIG" "commit_attribution" '""'
+  replace_literal_in_file "$CODEX_CONFIG" "$OLD_CODEX_BRAIN" "$CODEX_BRAIN"
+
+  if command -v codex >/dev/null 2>&1; then
+    codex features enable codex_hooks >/dev/null 2>&1 || echo "Note: could not enable Codex hooks automatically"
+  elif ! grep -q "^codex_hooks *= *true" "$CODEX_CONFIG"; then
+    if grep -q "^\[features\]" "$CODEX_CONFIG"; then
+      echo "Note: add 'codex_hooks = true' under [features] in $CODEX_CONFIG"
+    else
+      cat >> "$CODEX_CONFIG" << EOTOML
+
+[features]
+codex_hooks = true
+EOTOML
+    fi
+  fi
+
+  if ! grep -Fq "$CODEX_BRAIN" "$CODEX_CONFIG"; then
+    if grep -q "^\[sandbox_workspace_write\]" "$CODEX_CONFIG"; then
+      echo "Note: add '$CODEX_BRAIN' to sandbox_workspace_write.writable_roots in $CODEX_CONFIG"
+    else
+      cat >> "$CODEX_CONFIG" << EOTOML
+
+[sandbox_workspace_write]
+writable_roots = ["$CODEX_BRAIN"]
+EOTOML
+    fi
+  fi
+else
+  echo "Warning: No Obsidian vault found. Codex Brain will auto-detect using AGENTS.md fallback instructions."
+fi

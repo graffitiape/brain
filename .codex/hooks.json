@@ -1,0 +1,28 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup|resume",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/bin/zsh ~/.codex/hooks/obsidian_session_start.sh",
+            "statusMessage": "Loading Obsidian Brain"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/bin/zsh ~/.codex/hooks/obsidian_stop.sh",
+            "statusMessage": "Checking Obsidian Brain reminder",
+            "timeout": 30
+          }
+        ]
+      }
+    ]
+  }
+}
