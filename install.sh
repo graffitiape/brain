@@ -47,8 +47,8 @@ replace_literal_in_file() {
   local old="$2"
   local new="$3"
 
-  [ -f "$file" ] || return
-  grep -Fq "$old" "$file" || return
+  [ -f "$file" ] || return 0
+  grep -Fq "$old" "$file" || return 0
 
   local tmp
   tmp="$(mktemp)"
@@ -76,6 +76,44 @@ ensure_brain_folder() {
   mkdir -p "$brain/Projects/Work" "$brain/Projects/Hobby" "$brain/Projects/Side-Projects" \
            "$brain/Learnings" "$brain/Decisions" \
            "$brain/Sessions" "$brain/Preferences"
+}
+
+ensure_claude_brain_permissions() {
+  local file="$1"
+  local brain="$2"
+
+  if ! command -v python3 >/dev/null 2>&1; then
+    echo "Note: add Read/Write/Edit($brain/**) permissions to $file"
+    return 0
+  fi
+
+  python3 - "$file" "$brain" << 'PY'
+import json
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+brain = sys.argv[2]
+
+try:
+    data = json.loads(path.read_text())
+except Exception:
+    print(f"Note: could not update {path}; add Brain permissions manually")
+    raise SystemExit(0)
+
+permissions = data.setdefault("permissions", {})
+allow = permissions.setdefault("allow", [])
+
+for entry in (
+    f"Read({brain}/**)",
+    f"Write({brain}/**)",
+    f"Edit({brain}/**)",
+):
+    if entry not in allow:
+        allow.append(entry)
+
+path.write_text(json.dumps(data, indent=2) + "\n")
+PY
 }
 
 detect_obsidian_vault() {
@@ -143,6 +181,7 @@ EOJSON
     echo "Created settings.local.json with brain permissions"
   else
     replace_literal_in_file "$LOCAL_SETTINGS" "$CLAUDE_OBSIDIAN_VAULT/$OLD_BRAIN_FOLDER_NAME" "$BRAIN"
+    ensure_claude_brain_permissions "$LOCAL_SETTINGS" "$BRAIN"
     echo "Updated settings.local.json brain path if needed"
   fi
 else

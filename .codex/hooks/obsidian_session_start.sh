@@ -39,8 +39,9 @@ if [[ "$last_ts" =~ '^[0-9]+$' && "$last_key" == "$session_key" ]] && (( now - l
   exit 0
 fi
 
-mkdir -p "${cache_file:h}" 2>/dev/null
-printf '%s\t%s\n' "$now" "$session_key" >! "$cache_file" 2>/dev/null
+if mkdir -p "${cache_file:h}" 2>/dev/null && [[ -w "${cache_file:h}" ]]; then
+  printf '%s\t%s\n' "$now" "$session_key" >! "$cache_file"
+fi
 
 print "=== OBSIDIAN BRAIN INDEX (MAP ONLY) ==="
 cat "$index_file"
