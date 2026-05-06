@@ -105,13 +105,3 @@ Installs:
 
 VS Code Copilot reads user instruction files from `~/.copilot/instructions`, so this gives GitHub Copilot the same Brain rules as the other supported coding tools.
 
-## Machine-Local Files
-
-Machine-local files stay outside git:
-
-- `~/.claude/obsidian-brain-path`
-- `~/.claude/settings.local.json`
-- `~/.codex/obsidian-brain-path`
-- `~/.codex/config.toml`
-- `~/.cursor/obsidian-brain-path`
-- `~/.copilot/obsidian-brain-path`
